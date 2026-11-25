@@ -22,6 +22,8 @@ interface State {
   learn: boolean;
   /** the encoder waiting for a CC */
   armed: string | null;
+  /** the last CC heard while learning (to see that the controller reaches the page) */
+  last: number | null;
 }
 
 function kept(): Record<string, number> {
@@ -35,7 +37,7 @@ function kept(): Record<string, number> {
   }
 }
 
-let state: State = { bindings: kept(), learn: false, armed: null };
+let state: State = { bindings: kept(), learn: false, armed: null, last: null };
 const subs = new Set<() => void>();
 const registry = new Map<string, Spec>();
 
@@ -74,7 +76,7 @@ export function registerEncoder(id: string, spec: Spec): () => void {
 
 export function setLearn(on: boolean): void {
   if (state.learn === on && state.armed === null) return;
-  set({ learn: on, armed: null });
+  set({ learn: on, armed: null, last: null });
 }
 
 /** Click on an encoder in learn mode: arm it; again: clear its CC and disarm. */
@@ -96,12 +98,13 @@ export function valueAt(s: Pick<Spec, "min" | "max" | "log">, u: number): number
 
 /** A control change from the controller: binds the armed encoder, else moves the bound ones. */
 export function handleCc(cc: number, value: number): void {
+  if (state.learn && state.last !== cc) set({ last: cc });
   if (state.armed) {
     const bindings: Record<string, number> = {};
     // one knob drives one encoder: a CC taken from another gives way
     for (const [id, c] of Object.entries(state.bindings)) if (c !== cc) bindings[id] = c;
     bindings[state.armed] = cc;
-    set({ bindings, armed: null });
+    set({ bindings, armed: null, last: cc });
     return;
   }
   for (const [id, c] of Object.entries(state.bindings)) {

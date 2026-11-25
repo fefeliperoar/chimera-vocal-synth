@@ -54,7 +54,7 @@ export function Encoder(props: EncoderSpec & { slot: number; learn?: EncoderLear
   const [x0, y0] = at(0, 30), [x1, y1] = at(pos, 30), [px, py] = at(pos, 23);
   const arc = pos > 0.002 ? `M${x0.toFixed(2)} ${y0.toFixed(2)}A30 30 0 ${pos * 270 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}` : "";
   return (
-    <div className="encoder" style={{ "--slot": color } as React.CSSProperties}>
+    <div className={`encoder${learn?.on ? (learn.armed ? " learning armed" : " learning") : ""}`} style={{ "--slot": color } as React.CSSProperties}>
       <label className="enc-label" htmlFor={id}>
         {label}
       </label>
@@ -220,8 +220,14 @@ export function EncoderPages(props: { pages: EncoderPage[]; footer?: ReactNode; 
             onClick={() => setLearn(!ml.learn)}
             title="Bind a knob on your MIDI controller to an encoder: click an encoder, then move the knob. Click a bound encoder again to unbind it."
           >
-            {ml.learn ? "MIDI learn: click an encoder" : "MIDI learn"}
+            {ml.learn ? "MIDI learn: on" : "MIDI learn"}
           </button>
+          {ml.learn && (
+            <span className="enc-hint">
+              {ml.armed ? "Now move a knob on your controller" : "1. Click a dial above  2. Move a knob on your controller"}
+              {ml.last === null ? " (no CC heard yet)" : ` (heard CC ${ml.last})`}
+            </span>
+          )}
         </div>
       )}
       {props.footer && <div className="enc-footer">{props.footer}</div>}
