@@ -10,6 +10,7 @@ import { BEAT_PRESETS, BASS_NOTE, beatReady, parseBeat, type BeatStep } from "..
 import { singNoteOn, singNoteOff, stopSinging } from "./singing.ts";
 import { stopSpeaking } from "./speech.ts";
 import { connectMidi, disconnectMidi, type MidiStatus } from "./midi.ts";
+import { handleCc } from "./midiLearn.ts";
 
 export type Mode = "play" | "speak" | "sing" | "bestiary" | "beatbox";
 
@@ -436,6 +437,7 @@ export const useStore = create<State>((set, get) => ({
         get().noteOn(n, v);
       },
       noteOff,
+      cc: handleCc,
       inputs: (names) => set({ midi: { status: "on", inputs: names } }),
     }).catch(() => {
       if (get().midi.status === "connecting") set({ midi: { status: "denied", inputs: [] } });

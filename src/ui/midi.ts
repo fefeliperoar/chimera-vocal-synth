@@ -1,5 +1,5 @@
 /**
- * Web MIDI keyboards: note on/off (with velocity) from every connected input, including ones
+ * Web MIDI keyboards: note on/off (with velocity), and control changes for the encoders, from every connected input, including ones
  * plugged in later. The voice hears one note per pitch: a pitch held on several keyboards or
  * channels sounds until the last of them lets go. All-notes-off and unplugging release what
  * that input (channel) was holding.
@@ -11,6 +11,8 @@ export type MidiStatus = "off" | "connecting" | "on" | "unsupported" | "denied";
 export interface MidiHandlers {
   noteOn: (note: number, velocity: number) => void;
   noteOff: (note: number) => void;
+  /** a control change (a knob or slider on the controller): its number and value 0..127 */
+  cc?: (cc: number, value: number) => void;
   /** names of the connected inputs (on every change) */
   inputs: (names: string[]) => void;
 }
@@ -63,6 +65,7 @@ function attach(a: MIDIAccess): void {
       if (kind === 0x90 && d.length > 2 && d[2] > 0) press(owner, d[1], d[2]);
       else if (kind === 0x80 || kind === 0x90) lift(owner, d[1]);
       else if (kind === 0xb0 && (d[1] === 123 || d[1] === 120)) liftWhere((o) => o === owner); // all notes / sound off
+      else if (kind === 0xb0 && d.length > 2) handlers?.cc?.(d[1], d[2]);
     };
   });
   // unplugged inputs release what they held

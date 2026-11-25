@@ -1,5 +1,16 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { SLOTS } from "../colors.ts";
+import { encoderId, pick, registerEncoder, setLearn, useMidiLearn } from "../midiLearn.ts";
+import { useStore } from "../store.ts";
+import { midiSupported } from "../midi.ts";
+
+/** MIDI learn state of one encoder (undefined: no controller connected). A click arms it while learn is on. */
+export interface EncoderLearn {
+  on: boolean;
+  armed: boolean;
+  cc: number | undefined;
+  pick: () => void;
+}
 
 export interface EncoderSpec {
   label: string;
@@ -26,8 +37,8 @@ const SPAN = (270 * Math.PI) / 180;
  * dial is relative: up or right raises the value. On touch, vertical swipes scroll the page
  * (touch-action: pan-y) and only horizontal drags edit.
  */
-export function Encoder(props: EncoderSpec & { slot: number }) {
-  const { label, value, min, max, log, step, onChange, format, slot } = props;
+export function Encoder(props: EncoderSpec & { slot: number; learn?: EncoderLearn }) {
+  const { label, value, min, max, log, step, onChange, format, slot, learn } = props;
   const id = useId();
   const color = SLOTS[slot % 4];
   const toPos = (v: number) => (log ? (Math.log(v) - Math.log(min)) / (Math.log(max) - Math.log(min)) : (v - min) / (max - min));
@@ -51,6 +62,10 @@ export function Encoder(props: EncoderSpec & { slot: number }) {
         className="enc-dial"
         onPointerDown={(e) => {
           if (e.button !== 0) return;
+          if (learn?.on) {
+            learn.pick();
+            return;
+          }
           (e.currentTarget as Element).setPointerCapture(e.pointerId);
           drag.current = { x: e.clientX, y: e.clientY, pos, id: e.pointerId, touch: e.pointerType === "touch" };
           document.getElementById(id)?.focus({ preventScroll: true });
@@ -110,6 +125,7 @@ export function Encoder(props: EncoderSpec & { slot: number }) {
             <span className="enc-unit">{shown.unit}</span>
           </span>
         )}
+        {learn && (learn.on || learn.cc !== undefined) && <span className="enc-unit enc-cc">{learn.armed ? "Move a knob" : learn.cc !== undefined ? `CC ${learn.cc}` : "No CC"}</span>}
       </div>
     </div>
   );
@@ -145,6 +161,42 @@ export function EncoderPages(props: { pages: EncoderPage[]; footer?: ReactNode; 
   const cols = props.columns ?? 4;
   const [page, setPage] = useState(0);
   const p = props.pages[Math.min(page, props.pages.length - 1)];
+  // MIDI controller knobs: every encoder of the group listens, on whatever page is showing
+  const midiOn = useStore((s) => s.midi.status === "on");
+  const ml = useMidiLearn();
+  const all = props.pages.flatMap((pg) => pg.encoders);
+  const latest = useRef(all);
+  latest.current = all;
+  const labels = all.map((e) => e.label).join("\u0000");
+  const group = props.label;
+  useEffect(() => {
+    const find = (l: string) => latest.current.find((e) => e.label === l);
+    const offs = labels.split("\u0000").map((l) =>
+      registerEncoder(encoderId(group, l), {
+        get min() {
+          return find(l)?.min ?? 0;
+        },
+        get max() {
+          return find(l)?.max ?? 1;
+        },
+        get log() {
+          return find(l)?.log;
+        },
+        onChange: (v: number) => find(l)?.onChange(v),
+      }),
+    );
+    return () => offs.forEach((f) => f());
+  }, [labels, group]);
+  const canLearn = midiSupported() && midiOn;
+  // unplugging or leaving ends learning
+  useEffect(() => {
+    if (!canLearn) setLearn(false);
+    return () => setLearn(false);
+  }, [canLearn]);
+  const learnOf = (e: EncoderSpec) => {
+    const id = encoderId(group, e.label);
+    return canLearn ? { on: ml.learn, armed: ml.armed === id, cc: ml.bindings[id], pick: () => pick(id) } : undefined;
+  };
   return (
     <div className="enc-pages">
       {props.pages.length > 1 && (
@@ -157,8 +209,21 @@ export function EncoderPages(props: { pages: EncoderPage[]; footer?: ReactNode; 
         </div>
       )}
       <div className={`enc-row cols-${cols}`} role="group" aria-label={p.name}>
-        {Array.from({ length: cols }, (_, i) => i).map((i) => (p.encoders[i] ? <Encoder key={`${p.name}-${p.encoders[i].label}`} {...p.encoders[i]} slot={i} /> : <div key={`empty-${i}`} className="encoder empty" aria-hidden="true" />))}
+        {Array.from({ length: cols }, (_, i) => i).map((i) => (p.encoders[i] ? <Encoder key={`${p.name}-${p.encoders[i].label}`} {...p.encoders[i]} slot={i} learn={learnOf(p.encoders[i])} /> : <div key={`empty-${i}`} className="encoder empty" aria-hidden="true" />))}
       </div>
+      {canLearn && (
+        <div className="enc-footer">
+          <button
+            type="button"
+            className={`enc-tab${ml.learn ? " on" : ""}`}
+            aria-pressed={ml.learn}
+            onClick={() => setLearn(!ml.learn)}
+            title="Bind a knob on your MIDI controller to an encoder: click an encoder, then move the knob. Click a bound encoder again to unbind it."
+          >
+            {ml.learn ? "MIDI learn: click an encoder" : "MIDI learn"}
+          </button>
+        </div>
+      )}
       {props.footer && <div className="enc-footer">{props.footer}</div>}
     </div>
   );
