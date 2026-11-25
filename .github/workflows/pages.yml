@@ -1,0 +1,58 @@
+name: pages
+
+# Builds the web app (Rust → wasm, then Vite) and publishes it to GitHub Pages, so a fork's
+# changes can be tried in the browser without a local toolchain.
+on:
+  push:
+    branches: [main, spanish-front-end]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: oven-sh/setup-bun@v2
+      - uses: Swatinem/rust-cache@v2
+      - run: bun install --frozen-lockfile
+
+      # reported, but doesn't stop the page from being built
+      - name: Spanish tests
+        continue-on-error: true
+        run: cargo test -p chimera --test spanish
+
+      # Pages serves under /<repo>/, so the few absolute URLs in the source need the prefix
+      - name: Prefix absolute URLs
+        run: |
+          B="/${GITHUB_REPOSITORY#*/}"
+          sed -i "s#\"/data/#\"$B/data/#g" src/wasm/engine.ts
+          sed -i "s#href=\"/plugin/\"#href=\"$B/plugin/\"#" src/ui/App.tsx
+          echo "BASE=$B/" >> "$GITHUB_ENV"
+
+      - run: bun run build --base="$BASE"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

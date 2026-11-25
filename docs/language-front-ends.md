@@ -33,13 +33,14 @@ Korean and Mandarin need (`ɕ ʑ tɕ dʑ tʂ dʐ ɥ`, step 3), aspiration as the
 | Han | Mandarin | `public/data/mandarin.txt.gz` (208 KB, fetched when lyrics have Han characters) | `phonetics/mandarin.rs` |
 | Latin with tones | Mandarin as pinyin | nothing (checked against Mandarin's 411 syllables) | `phonetics/mandarin.rs` (`Pinyin`) |
 | Latin, when chosen | Turkish | nothing: spelling rules, stress by rule ([turkish.md](turkish.md)) | `phonetics/turkish.rs` |
+| Latin, when chosen | Spanish | nothing: spelling rules, stress by rule ([spanish.md](spanish.md)) | `phonetics/spanish.rs` |
 
 The router (`read_lyrics` in `syllables.rs`) sends each word to the front end whose script it is
 in, so a line can mix them (`我爱你 hello 빵야 nǐhǎo`). It also handles what every language
 shares: melisma marks (`-`, `~`), phrase punctuation (ASCII and full-width `，。！？`) and word ends.
 
 Script can't tell Latin-script languages apart, so the player chooses which front end reads Latin
-script: English unless Turkish is chosen (`Lang` in `syllables.rs`; EN/TR in Speak and Sing).
+script: English unless Turkish or Spanish is chosen (`Lang` in `syllables.rs`; EN/TR/ES in Speak and Sing).
 Toned pinyin and the other scripts are routed as before whichever is chosen.
 
 Pinyin and English share the Latin alphabet, so a front end may **decline** a word it scanned

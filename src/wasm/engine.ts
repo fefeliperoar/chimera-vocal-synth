@@ -154,11 +154,19 @@ export class MandarinLexicon {
 
 /**
  * Lyrics → sung syllables through the built-in front ends: pinyin, the Latin-script language
- * (`lang`: English through the page's dictionary, see EnglishG2P, or Turkish), Korean, Russian,
+ * (`lang`: English through the page's dictionary, see EnglishG2P, Turkish or Spanish), Korean, Russian,
  * and Mandarin once its lexicon is loaded.
  */
 export function lyricsToSyllables(text: string, lang: Lang = "en"): Syllable[] {
   return call("lyricsToSyllables", { text, lang });
+}
+
+/**
+ * Spanish text → phrases of segments. Its spelling rules are the G2P too
+ * (crates/chimera/src/phonetics/spanish.rs).
+ */
+export function spanishPhrases(text: string): Phrase[] {
+  return call("esPhrases", { text });
 }
 
 /**
